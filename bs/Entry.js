@@ -28,14 +28,14 @@ const path = require("path");
 function main() {
     let extensionsUsed = [];
     let cwd = path.resolve("./").replace(/\\/g, "/");
-    
+    let modules = {};
+    let sourceTree = [];
+
     // iterate source list
     for(let key in buildscript.source) {
         let expandedSrc = [];
-        
         // iterate the files inside
-        for(let index in buildscript.source[key]) {
-            let item = buildscript.source[key][index];
+        for(let item of buildscript.source[key]) {
             // replace $root with the absolute path, normalise slashes
             let tempPath = item.replace("$root", cwd).replace(/\\/g, "/");
             console.log("Parsing file tree", tempPath, "from", item);
@@ -63,6 +63,7 @@ function main() {
 
                 // add it to the list
                 expandedSrc = expandedSrc.concat(fileList);
+                
             } else {
                 // it's an absolute file or folder. check it exists
                 if(!fs.existsSync(tempPath)) {
@@ -78,14 +79,33 @@ function main() {
         buildscript.source[key] = expandedSrc;
     }
 
+    // seek for plugins to load
+    for(let ext of extensionsUsed) {
+
+        console.log("Searching for a plugin for the extension", ext);
+        let extPluginName = cwd + "/plugins/" + ext + ".js";
+        if(!fs.existsSync(extPluginName)) {
+            console.log("Expected plugin", extPluginName, "does not exist! Unable to build");
+            return;
+        }
+        
+        modules[ext] = require(extPluginName);
+        let preprocessorFunc = "extension" + ext.toUpperCase();
+        // preprocess the buildscript
+        modules[ext][preprocessorFunc](buildscript);
+        
+        console.log("Imported plugin", extPluginName, "for extension", ext, "and ran preprocessor function", preprocessorFunc);
+    }
+    
+    console.log(modules);
+
     // iterate build instructions
     for(let key in buildscript.build) {
         let expandedBuild = [];
         
         console.log("Parsing build step", key);
         // iterate the steps inside
-        for(let index in buildscript.build[key]) {
-            let item = buildscript.build[key][index];
+        for(let item of buildscript.build[key]) {
             console.log("Reading step argument", item);
             // find \$(.+?)\b
             let treeRegex = /\$(.+?)\b/;
@@ -104,33 +124,45 @@ function main() {
                     
                     // if the mnemonic is on its own, and it's a list, then we append the list to the args.
                     if(treeMatches.index == 0 && item.trim().length == treeMatches[0].length) {
-                        if(Array.isArray(value))
+                        if(Array.isArray(value)) {
                             expandedBuild = expandedBuild.concat(value);
+                            // Save it to the full list of sources for later
+                            sourceTree = sourceTree.concat(value);
+                        }
                     } else {
                         expandedBuild.push(itemTemp);
                     }
+                } else {
+                    switch(name) {
+                        case "name":
+                        let systemExt = process.platform == "win32" ? ".exe" : "";
+                        expandedBuild.push(buildscript.name + systemExt);
+                        break;
+                    }
+                }
+            } else {
+                switch (true) {
+                    // %.o substitution
+                    case /\%\.(.+?)/g.test(item):
+                        let linkObjects = [];
+                        // read source files
+                        for (let source of sourceTree) {
+                            // remove old extension
+                            let sourcePath = source.substr(0, source.lastIndexOf("."));
+                            // Whack the new extension on
+                            sourcePath = sourcePath + item.substr(item.lastIndexOf("."));
+                            // Save it
+                            linkObjects.push(sourcePath);
+                        }
+
+                        console.log("Substituting mnemonic", item, "with value", linkObjects);
+                        expandedBuild = expandedBuild.concat(linkObjects);
+                        break;
                 }
             }
         }
 
         buildscript.build[key] = expandedBuild;
-    }
-
-    let modules = [];
-    // seek for plugins to load
-    for(let ind in extensionsUsed) {
-        let ext = extensionsUsed[ind];
-
-        console.log("Searching for a plugin for the extension", ext);
-        let extPluginName = cwd + "/plugins/" + ext + ".js";
-        if(!fs.existsSync(extPluginName)) {
-            console.log("Expected plugin", extPluginName, "does not exist! Unable to build");
-            return;
-        }
-        
-        let module = require(extPluginName);
-        modules.push(module);
-        console.log("Imported plugin", extPluginName);
     }
 
     console.log(buildscript);
