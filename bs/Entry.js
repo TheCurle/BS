@@ -26,18 +26,18 @@ const fs = require("fs");
 const path = require("path");
 
 function main() {
-    // parse source lists
-    let sourceMap = {};
+    let extensionsUsed = [];
+    let cwd = path.resolve("./").replace(/\\/g, "/");
     
     // iterate source list
-    for(var key in buildscript.source) {
+    for(let key in buildscript.source) {
         let expandedSrc = [];
         
         // iterate the files inside
         for(let index in buildscript.source[key]) {
             let item = buildscript.source[key][index];
-            // replace $root with the absolute path
-            let tempPath = item.replace("$root", path.resolve("../"));
+            // replace $root with the absolute path, normalise slashes
+            let tempPath = item.replace("$root", cwd).replace(/\\/g, "/");
             console.log("Parsing file tree", tempPath, "from", item);
 
             // attempt to expand wildcards
@@ -50,6 +50,7 @@ function main() {
                 // first save the path (the part before the *.)
                 let pathDir = tempPath.substr(0, expansionMatch.index);
                 console.log("Finding files in", pathDir, "that end in", expansionMatch[1]);
+                extensionsUsed.push(expansionMatch[1]);
 
                 // list all files, filter for the extension
                 let fileList = fs.readdirSync(pathDir).filter(fn => fn.endsWith(expansionMatch[1]));
@@ -75,6 +76,61 @@ function main() {
         }
 
         buildscript.source[key] = expandedSrc;
+    }
+
+    // iterate build instructions
+    for(let key in buildscript.build) {
+        let expandedBuild = [];
+        
+        console.log("Parsing build step", key);
+        // iterate the steps inside
+        for(let index in buildscript.build[key]) {
+            let item = buildscript.build[key][index];
+            console.log("Reading step argument", item);
+            // find \$(.+?)\b
+            let treeRegex = /\$(.+?)\b/;
+            let treeMatches = item.match(treeRegex);
+            // if we have something to parse, read it in
+            if(treeMatches != null) {
+                let name = treeMatches[1];
+                console.log("Found mnemonic", name, "in step", item);
+                // check if the name is a source set
+                if(name in buildscript.source) {
+                    // if so, sub it in
+                    let value = buildscript.source[name];
+                    let itemTemp = item.replace(treeMatches[0], value);
+                    console.log("Substituting mnemonic", name, "with value", value);
+                    
+                    
+                    // if the mnemonic is on its own, and it's a list, then we append the list to the args.
+                    if(treeMatches.index == 0 && item.trim().length == treeMatches[0].length) {
+                        if(Array.isArray(value))
+                            expandedBuild = expandedBuild.concat(value);
+                    } else {
+                        expandedBuild.push(itemTemp);
+                    }
+                }
+            }
+        }
+
+        buildscript.build[key] = expandedBuild;
+    }
+
+    let modules = [];
+    // seek for plugins to load
+    for(let ind in extensionsUsed) {
+        let ext = extensionsUsed[ind];
+
+        console.log("Searching for a plugin for the extension", ext);
+        let extPluginName = cwd + "/plugins/" + ext + ".js";
+        if(!fs.existsSync(extPluginName)) {
+            console.log("Expected plugin", extPluginName, "does not exist! Unable to build");
+            return;
+        }
+        
+        let module = require(extPluginName);
+        modules.push(module);
+        console.log("Imported plugin", extPluginName);
     }
 
     console.log(buildscript);
