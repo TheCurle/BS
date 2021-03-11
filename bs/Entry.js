@@ -27,9 +27,9 @@ const path = require("path");
 
 function main() {
     let extensionsUsed = [];
-    let cwd = path.resolve("./").replace(/\\/g, "/");
     let modules = {};
     let sourceTree = [];
+    let cwd = process.cwd().replace(/\\/g, "/");
 
     // iterate source list
     for(let key in buildscript.source) {
@@ -148,9 +148,14 @@ function main() {
                         // read source files
                         for (let source of sourceTree) {
                             // remove old extension
-                            let sourcePath = source.substr(0, source.lastIndexOf("."));
+                            if(source.lastIndexOf(cwd) < 0) {
+                                console.log("Compiling sources outside the cwd is not supported - cwd is", cwd, "source is", source);
+                                return;
+                            }
+                            let sourcePath = source.substr(source.lastIndexOf(cwd) + cwd.length + 1);
+                            sourcePath = sourcePath.substr(0, sourcePath.lastIndexOf("."));
                             // Whack the new extension on
-                            sourcePath = sourcePath + item.substr(item.lastIndexOf("."));
+                            sourcePath = cwd + "/bsTemp/" + sourcePath + item.substr(item.lastIndexOf("."));
                             // Save it
                             linkObjects.push(sourcePath);
                         }
@@ -163,6 +168,26 @@ function main() {
         }
 
         buildscript.build[key] = expandedBuild;
+    }
+
+    console.log("==================================");
+    console.log("==================================");
+
+    console.log("Preprocessing done. Building..");
+
+    // now actually execute the build
+    for(let key in buildscript.build) {
+        
+        console.log("Executing build step", key);
+        let stepNameStart = key.substr(0, 1);
+        let stepName = "step" + stepNameStart.toUpperCase() + key.substr(1);
+
+        for(let module in modules) {
+            if(modules[module][stepName] != null) {
+                console.log("Calling function", stepName, "of plugin", )
+                modules[module][stepName](buildscript.build[key]);
+            }
+        }
     }
 
     console.log(buildscript);

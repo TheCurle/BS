@@ -6,6 +6,8 @@ let tempDir;
 let defaultLinkFlags = "%.o"
 let defaultOutput = "$name"
 
+let linkCache = "";
+
 
 module.exports = {
     
@@ -27,9 +29,12 @@ module.exports = {
             buildscript.build["output"] = [defaultOutput];
         }
 
-        console.log("Creating temporary dir for object files");
-        fs.mkdirSync(process.cwd() + "/bsTemp/");
         tempDir = process.cwd() + "/bsTemp/";
+        
+        if(!fs.existsSync(tempDir)) {
+            console.log("Creating temporary dir for object files");
+            fs.mkdirSync(tempDir);
+        }
     },
 
     extensionH: function() {},
@@ -40,22 +45,69 @@ module.exports = {
      * @param  {...string} params the list of strings
      */
     stepCompile: function(...params) {
+        let cwd = process.cwd().replace(/\\/g, "/");
         let compileFlags = "";
+        // Check whether we're doubly listed
+        if(Array.isArray(params[0])) {
+            params = params[0];
+        }
+
         for(var param of params) {
+            console.log("stepCompile: param", param);
             if(param.startsWith("-")) {
                 compileFlags = param;
             } else {
-                let filePath = param.substr(0, param.lastIndexOf("."));
-                let fileName = param.substr(param.lastIndexOf("/"), param.lastIndexOf("."));
+                let binPath = param.substr(param.lastIndexOf(cwd) + cwd.length + 1);
+                binPath = binPath.substr(0, binPath.lastIndexOf("."));
+                binPath = cwd + "/bsTemp/" + binPath;
+
+                // generate the file structure for it to go into
+                fs.mkdirSync(binPath.substr(0, binPath.lastIndexOf("/")), {recursive: true});
                 let compilerCommand =
                     defaultCompiler + 
-                    " -c " + filePath + ".c" +
-                    " -o " + tempDir + "/" + fileName + ".o "
+                    " -c " + param +
+                    " -o " + binPath + ".o "
                     + compileFlags;
                 
-                child.spawn(compilerCommand);
+                child.execSync(compilerCommand);
             }
         }
+    },
+
+    /**
+     * Take in the compiled binary object files,
+     * prepare the link command, and save it for the link execution.
+     * @param {...string} params the object files to link. 
+     */
+    stepLink: function(...params) {
+        let linkerCommand = "";
+        // Check whether we're doubly listed
+        if(Array.isArray(params[0])) {
+            params = params[0];
+        }
+
+        for(var param of params) {
+            console.log("stepLink: param", param);
+            linkerCommand += param + " ";
+        }
+
+        linkCache = linkerCommand;
+    },
+
+    /**
+     * Take in the name of a file, execute the link command to save the output.
+     * @param {string} output the name of the wanted file
+     */
+    stepOutput: function(output) {
+        // Check whether we're doubly listed
+        if(Array.isArray(output[0])) {
+            output = output[0];
+        }
+
+        let linkerCommand = "gcc -o " + process.cwd() + "/" + output + " " + linkCache;
+        console.log("stepOutput: param", output, "command", linkerCommand);
+        child.execSync(linkerCommand);
+
     }
 
 }
