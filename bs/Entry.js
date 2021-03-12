@@ -135,12 +135,13 @@ function main() {
         // iterate the steps inside
         for(let item of buildscript.build[key]) {
             console.log("Reading step argument", item);
-            // find \$(.+?)\b
-            let treeRegex = /\$(.+?)\b/;
+            // find /\$([-\w]+)/g
+            let treeRegex = /\$([-\w]+)/g;
             let treeMatches = item.match(treeRegex);
             // if we have something to parse, read it in
             if(treeMatches != null) {
-                let name = treeMatches[1];
+                console.log(treeMatches);
+                let name = treeMatches[0].substr(1);
                 console.log("Found mnemonic", name, "in step", item);
                 // check if the name is a source set
                 if(name in buildscript.source) {
@@ -149,10 +150,10 @@ function main() {
                     let itemTemp = item.replace(treeMatches[0], value);
                     console.log("Substituting mnemonic", name, "with value", value);
                     
-                    
                     // if the mnemonic is on its own, and it's a list, then we append the list to the args.
-                    if(treeMatches.index == 0 && item.trim().length == treeMatches[0].length) {
+                    if(/* (treeMatches.index != null && treeMatches.index == 0) && */ item.trim().length == treeMatches[0].length) {
                         if(Array.isArray(value)) {
+                            console.log("\tSaving expanded array into this step's parameters");
                             expandedBuild = expandedBuild.concat(value);
                             // Save it to the full list of sources for later
                             sourceTree = sourceTree.concat(value);
@@ -188,8 +189,11 @@ function main() {
                             linkObjects.push(sourcePath);
                         }
 
-                        console.log("Substituting mnemonic", item, "with value", linkObjects);
+                        console.log("Substituting replacement mnemonic", item, "with value", linkObjects);
                         expandedBuild = expandedBuild.concat(linkObjects);
+                        break;
+                    default:
+                        expandedBuild = expandedBuild.concat(item);
                         break;
                 }
             }
@@ -215,7 +219,7 @@ function main() {
         for(let module in modules) {
             if(modules[module][stepName] != null) {
                 console.log("Calling function", stepName, "of plugin", module);
-                modules[module][stepName](buildscript.build[key]);
+                modules[module][stepName](buildscript.build[keyFull]);
             }
         }
     }

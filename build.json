@@ -13,7 +13,7 @@
             "$root/Chroma/font.o"
         ],
 
-        "linkscript": [
+        "linkerscript": [
             "$root/Chroma/linker.ld"
         ],
 
