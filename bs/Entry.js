@@ -50,7 +50,8 @@ function main() {
                 // first save the path (the part before the *.)
                 let pathDir = tempPath.substr(0, expansionMatch.index);
                 console.log("Finding files in", pathDir, "that end in", expansionMatch[1]);
-                extensionsUsed.push(expansionMatch[1]);
+                if(extensionsUsed.indexOf(expansionMatch[1]) < 0)
+                    extensionsUsed.push(expansionMatch[1]);
 
                 // list all files, filter for the extension
                 let fileList = fs.readdirSync(pathDir).filter(fn => fn.endsWith(expansionMatch[1]));
@@ -70,7 +71,11 @@ function main() {
                     console.log("File or folder", tempPath, "in source set", key, "does not exist!");
                     return;
                 }
-                console.log("Appending absolute file", tempPath, "to source set", key);
+                console.log("\tAppending absolute file", tempPath, "to source set", key);
+                
+                let dotPosition = tempPath.lastIndexOf(".") + 1;
+                if(!extensionsUsed.includes(tempPath.substr(dotPosition)) && dotPosition > 0)
+                    extensionsUsed.push(tempPath.substr(dotPosition));
 
                 expandedSrc = expandedSrc.concat(tempPath);
             }
@@ -83,18 +88,41 @@ function main() {
     for(let ext of extensionsUsed) {
 
         console.log("Searching for a plugin for the extension", ext);
-        let extPluginName = cwd + "/plugins/" + ext + ".js";
+        let pluginPath = cwd + "/plugins/";
+        let extPluginName = pluginPath + ext + ".js";
         if(!fs.existsSync(extPluginName)) {
-            console.log("Expected plugin", extPluginName, "does not exist! Unable to build");
-            return;
+            console.log("Expected plugin", extPluginName, "does not exist! Searching for another file that provides this extension..");
+            let errorFlag = true;
+            for(var file of fs.readdirSync(pluginPath)) {
+                let module = require(pluginPath + file);
+                let functionName = "extension" + ext.toUpperCase();
+                if(module[functionName] instanceof Function) {
+                    errorFlag = false;
+                    extPluginName = pluginPath + file;
+                    console.log("Found valid file", file, "that provides the extension", ext);
+                    ext = file.substr(0, file.lastIndexOf("."));
+                }
+            }
+            if(errorFlag) {
+                console.log("No plugin provides the extension", ext);
+                return;
+            }
         }
         
+        if(modules[ext] != null) continue;
+
         modules[ext] = require(extPluginName);
         let preprocessorFunc = "extension" + ext.toUpperCase();
         // preprocess the buildscript
+
+        
         modules[ext][preprocessorFunc](buildscript);
         
         console.log("Imported plugin", extPluginName, "for extension", ext, "and ran preprocessor function", preprocessorFunc);
+
+        if(buildscript.target != null) {
+            modules[ext].setCompiler(buildscript.target);
+        }
     }
     
     console.log(modules);
@@ -176,15 +204,17 @@ function main() {
     console.log("Preprocessing done. Building..");
 
     // now actually execute the build
-    for(let key in buildscript.build) {
+    for(let keyFull in buildscript.build) {
         
-        console.log("Executing build step", key);
+        console.log("Executing build step", keyFull);
+        let key = keyFull.split("-")[0];
+        
         let stepNameStart = key.substr(0, 1);
         let stepName = "step" + stepNameStart.toUpperCase() + key.substr(1);
 
         for(let module in modules) {
             if(modules[module][stepName] != null) {
-                console.log("Calling function", stepName, "of plugin", )
+                console.log("Calling function", stepName, "of plugin", module);
                 modules[module][stepName](buildscript.build[key]);
             }
         }

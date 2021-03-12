@@ -1,0 +1,20 @@
+{
+    "name": "Erythro",
+    "author": "Curle",
+
+    "source": {
+        "src": [
+            "$root/erythro/src/*.c"
+        ],
+        "inc": [
+            "$root/erythro/include/"
+        ]
+    },
+
+    "build": {
+        "compile": [
+            "-g -I$inc",
+            "$src"
+        ]
+    }
+}

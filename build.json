@@ -1,20 +1,82 @@
 {
-    "name": "Erythro",
+    "name": "Chroma",
+    "target": "x86_64-elf-gcc",
+
     "author": "Curle",
 
     "source": {
-        "src": [
-            "$root/erythro/src/*.c"
-        ],
         "inc": [
-            "$root/erythro/include/"
+            "$root/Chroma/chroma/inc/"
+        ],
+
+        "font": [
+            "$root/Chroma/font.o"
+        ],
+
+        "linkscript": [
+            "$root/Chroma/linker.ld"
+        ],
+
+        "preamble": [
+            "$root/Chroma/global/crt0.o",
+            "$root/Chroma/global/crti.o",
+            "$root/Chroma/global/crtbegin.o"
+        ],
+
+        "main": [
+            "$root/Chroma/chroma/kernel.c",
+            "$root/Chroma/chroma/video/draw.c",
+            "$root/Chroma/chroma/video/print.c",
+            "$root/Chroma/chroma/system/cpu.c",
+            "$root/Chroma/chroma/system/rw.c",
+            "$root/Chroma/chroma/system/serial.c",
+            "$root/Chroma/chroma/system/pci.c",
+            "$root/Chroma/chroma/system/memory/stack.c",
+            "$root/Chroma/chroma/system/memory/paging.c",
+            "$root/Chroma/chroma/system/memory/abstract_allocator.c",
+            "$root/Chroma/chroma/system/memory/physmem.c",
+            "$root/Chroma/chroma/system/drivers/keyboard.c",
+            "$root/Chroma/chroma/system/drivers/elf.c"
+        ],
+
+        "no-sse": [
+            "$root/Chroma/chroma/system/interrupts.c"
+        ],
+
+        "lib": [
+            "$root/Chroma/chroma/lainlib/list/basic_list.c",
+            "$root/Chroma/chroma/lainlib/mutex/ticketlock.c",
+            "$root/Chroma/chroma/lainlib/compression/lzgmini.c"
+        ],
+
+        "epilogue": [
+            "$root/Chroma/global/crtend.o",
+            "$root/Chroma/global/crtn.o" 
         ]
     },
 
     "build": {
-        "compile": [
-            "-g -I$inc",
-            "$src"
+        "compile-no-sse": [
+            "-I$inc -ffreestanding -O0 -Wall -Wextra -Wall -Werror -pedantic -fPIC -fno-exceptions -fno-omit-frame-pointer -mno-red-zone -fno-stack-protector -ggdb3 -mgeneral-regs-only",
+            "$no-sse"
+        ],
+
+        "compile-main": [
+            "-I$inc -ffreestanding -O0 -Wall -Wextra -Wall -Werror -pedantic -fPIC -fno-exceptions -fno-omit-frame-pointer -mno-red-zone -fno-stack-protector -ggdb3",
+            "$preamble",
+            "$main",
+            "$lib",
+            "$font",
+            "$epilogue"
+        ],
+
+        "link": [
+            "-T $linkerscript -ffreestanding -O2 -nostdlib -nostartfiles -lgcc",
+            "%.o"
+        ],
+
+        "output": [
+            "Chroma.elf"
         ]
     }
 }

@@ -35,9 +35,13 @@ module.exports = {
             console.log("Creating temporary dir for object files");
             fs.mkdirSync(tempDir);
         }
+
+        
     },
 
     extensionH: function() {},
+    extensionO: function() {},
+    extensionLD: function() {},
 
     /**
      * Called when it is time to execute the compile step.
@@ -63,13 +67,20 @@ module.exports = {
 
                 // generate the file structure for it to go into
                 fs.mkdirSync(binPath.substr(0, binPath.lastIndexOf("/")), {recursive: true});
-                let compilerCommand =
-                    defaultCompiler + 
-                    " -c " + param +
-                    " -o " + binPath + ".o "
-                    + compileFlags;
+                if(param.substr(param.lastIndexOf(".") + 1) != "c" 
+                    && param.substr(param.lastIndexOf(".") + 1) != "s") {
+
+                    fs.copyFileSync(param, binPath + ".o");
+                } else {
+                    let compilerCommand =
+                        defaultCompiler + 
+                        " -c " + param +
+                        " -o " + binPath + ".o "
+                        + compileFlags;
+                        
+                    child.execSync(compilerCommand);
+                }
                 
-                child.execSync(compilerCommand);
             }
         }
     },
@@ -104,10 +115,23 @@ module.exports = {
             output = output[0];
         }
 
-        let linkerCommand = "gcc -o " + process.cwd() + "/" + output + " " + linkCache;
+        let linkerCommand = defaultCompiler + " -o " + process.cwd() + "/" + output + " " + linkCache;
         console.log("stepOutput: param", output, "command", linkerCommand);
         child.execSync(linkerCommand);
 
+    },
+
+    /**
+     * Set the name of the compiler to be used.
+     * @param {string} comp 
+     */
+    setCompiler: function(comp) {
+        // Check whether we're doubly listed
+        if(Array.isArray(comp[0])) {
+            comp = comp[0];
+        }
+        defaultCompiler = comp;
+        console.log("Set compiler to", comp);
     }
 
 }
