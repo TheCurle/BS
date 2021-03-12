@@ -140,15 +140,14 @@ function main() {
             let treeMatches = item.match(treeRegex);
             // if we have something to parse, read it in
             if(treeMatches != null) {
-                console.log(treeMatches);
                 let name = treeMatches[0].substr(1);
-                console.log("Found mnemonic", name, "in step", item);
+                console.log("Found mnemonic", name);
                 // check if the name is a source set
                 if(name in buildscript.source) {
                     // if so, sub it in
                     let value = buildscript.source[name];
                     let itemTemp = item.replace(treeMatches[0], value);
-                    console.log("Substituting mnemonic", name, "with value", value);
+                    console.log("Substituting mnemonic with value", value);
                     
                     // if the mnemonic is on its own, and it's a list, then we append the list to the args.
                     if(/* (treeMatches.index != null && treeMatches.index == 0) && */ item.trim().length == treeMatches[0].length) {
